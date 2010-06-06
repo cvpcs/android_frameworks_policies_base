@@ -184,6 +184,23 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
                 mSilentModeToggle,
                 // next: airplane mode
                 mAirplaneModeOn,
+                // next: reboot recovery
+                new SinglePressAction(
+                		com.android.internal.R.drawable.ic_lock_reboot_recovery,
+                		R.string.global_action_reboot_recovery) {
+                	
+                	public void onPress() {
+                		ShutdownThread.rebootRecovery(mContext, true);
+                	}
+                	
+                	public boolean showDuringKeyguard() {
+                		return true;
+                	}
+                	
+                	public boolean showBeforeProvisioning() {
+                		return true;
+                	}
+                },
                 // last: power off
                 new SinglePressAction(
                         com.android.internal.R.drawable.ic_lock_power_off,

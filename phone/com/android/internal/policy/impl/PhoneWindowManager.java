@@ -484,7 +484,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             // Shamelessly copied from MediaPlaybackService.java, which
             // should be public, but isn't.
             Intent i = new Intent("com.android.music.musicservicecommand");
-            i.putExtra("command", "next");
+            i.putExtra("command", "previous");
             
             mContext.sendBroadcast(i);
         };
@@ -503,7 +503,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             // Shamelessly copied from MediaPlaybackService.java, which
             // should be public, but isn't.
             Intent i = new Intent("com.android.music.musicservicecommand");
-            i.putExtra("command", "previous");
+            i.putExtra("command", "next");
             
             mContext.sendBroadcast(i);
         };

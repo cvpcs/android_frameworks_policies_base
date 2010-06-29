@@ -219,10 +219,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     
     int mPointerLocationMode = 0;
     PointerLocationView mPointerLocationView = null;
-    Long mTrackballHitTime;
     boolean mVolumeUpPressed;
     boolean mVolumeDownPressed;
-    static final long NEXT_DURATION = 400; 
     
     // The current size of the screen.
     int mW, mH;

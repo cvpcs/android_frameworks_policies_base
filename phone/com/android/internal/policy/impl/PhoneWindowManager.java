@@ -221,6 +221,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     PointerLocationView mPointerLocationView = null;
     boolean mVolumeUpPressed;
     boolean mVolumeDownPressed;
+    boolean mCameraKeyPressable = false;
     
     // The current size of the screen.
     int mW, mH;
@@ -504,6 +505,20 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             Intent i = new Intent("com.android.music.musicservicecommand");
             i.putExtra("command", "previous");
             
+            mContext.sendBroadcast(i);
+        };
+    };
+
+    /**
+     * When a camera-key longpress expires, play/pause on key press
+     */
+    Runnable mCameraLongPress = new Runnable() {
+        public void run() {
+            // Shamelessly copied from MediaPlaybackService.java, which
+            // should be public, but isn't.
+            Intent i = new Intent("com.android.music.musicservicecommand");
+            i.putExtra("command", "togglepause");
+
             mContext.sendBroadcast(i);
         };
     };
@@ -1798,6 +1813,21 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 handleVolumeKey(AudioManager.STREAM_MUSIC, keycode);
         }
     }
+
+    void handleCameraKeyDown() {
+        // if the camera key is not pressable, see if music is active
+        if (!mCameraKeyPressable) {
+            mCameraKeyPressable = isMusicActive();
+        }
+
+        if (mCameraKeyPressable) {
+            mHandler.postDelayed(mCameraLongPress, ViewConfiguration.getLongPressTimeout());
+        }
+    }
+
+    void handleCameraKeyUp() {
+        mHandler.removeCallbacks(mCameraLongPress);
+    }
     
     static boolean isMediaKey(int code) {
         if (code == KeyEvent.KEYCODE_HEADSETHOOK || 
@@ -1848,17 +1878,26 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     // tell the mediator about a wake key, it may decide to
                     // turn on the screen depending on whether the key is
                     // appropriate.
-                    if (!mKeyguardMediator.onWakeKeyWhenKeyguardShowingTq(event.keycode)
-                            && (event.keycode == KeyEvent.KEYCODE_VOLUME_DOWN
-                                || event.keycode == KeyEvent.KEYCODE_VOLUME_UP)) {
-                        handleVolumeKeyDown(event.keycode);
+                    if (!mKeyguardMediator.onWakeKeyWhenKeyguardShowingTq(event.keycode)) {
+                        if (event.keycode == KeyEvent.KEYCODE_VOLUME_DOWN
+                                || event.keycode == KeyEvent.KEYCODE_VOLUME_UP) {
+                            handleVolumeKeyDown(event.keycode);
+                        }
                     }
                 }
                 else if (isWakeKey && isKeyUp) {
-                    if (!mKeyguardMediator.onWakeKeyWhenKeyguardShowingTq(event.keycode)
-                            && (event.keycode == KeyEvent.KEYCODE_VOLUME_DOWN
-                                    || event.keycode == KeyEvent.KEYCODE_VOLUME_UP)) {
-                        handleVolumeKeyUp(event.keycode);
+                    if (!mKeyguardMediator.onWakeKeyWhenKeyguardShowingTq(event.keycode)) {
+                        if (event.keycode == KeyEvent.KEYCODE_VOLUME_DOWN
+                                || event.keycode == KeyEvent.KEYCODE_VOLUME_UP) {
+                            handleVolumeKeyUp(event.keycode);
+                        }
+                    }
+                }
+                else if (event.keycode == KeyEvent.KEYCODE_CAMERA) {
+                    if (isKeyDown) {
+                        handleCameraKeyDown();
+                    } else {
+                        handleCameraKeyUp();
                     }
                 }
             }
@@ -2125,6 +2164,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mKeyguardMediator.onScreenTurnedOn();
         synchronized (mLock) {
             mScreenOn = true;
+            // since the screen turned on, assume we don't enable play-pause again
+            // unless they turn it off and music is still playing.  this is done to
+            // prevent the camera button from starting playback if playback wasn't
+            // originally running
+            mCameraKeyPressable = false;
             updateOrientationListenerLp();
             updateLockScreenTimeout();
         }

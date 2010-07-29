@@ -22,6 +22,7 @@ import com.android.internal.widget.LockPatternUtils;
 import com.android.internal.widget.SlidingTab;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.content.res.ColorStateList;
@@ -88,10 +89,20 @@ class LockScreen extends LinearLayout implements KeyguardScreen, KeyguardUpdateM
     private Drawable mChargingIcon = null;
 
     private boolean mSilentMode;
-    private AudioManager mAudioManager;
+    private AudioManager mAudioManager = (AudioManager)getContext().getSystemService(Context.AUDIO_SERVICE);
     private String mDateFormatString;
     private java.text.DateFormat mTimeFormat;
     private boolean mEnableMenuKeyInLockScreen;
+
+    private boolean mDisplayLockScreenMusicControls = true;
+    private boolean mAlwaysDisplayLockScreenMusicControls = false;
+
+    private ImageButton mPlayButton;
+    private ImageButton mPauseButton;
+    private ImageButton mPreviousButton;
+    private ImageButton mNextButton;
+    private boolean mMediaWasActive = mAudioManager.isMusicActive();
+    private boolean mMediaIsActive = false;
 
     /**
      * The status of this lock screen.
@@ -181,6 +192,23 @@ class LockScreen extends LinearLayout implements KeyguardScreen, KeyguardUpdateM
 
         mKeyboardHidden = configuration.hardKeyboardHidden;
 
+        switch (Settings.System.getInt(context.getContentResolver(),
+                Settings.System.DISPLAY_LOCKSCREEN_MUSIC_CONTROLS, 1)) {
+            case 0:
+                mDisplayLockScreenMusicControls = false;
+                mAlwaysDisplayLockScreenMusicControls = false;
+                break;
+            case 2:
+                mDisplayLockScreenMusicControls = true;
+                mAlwaysDisplayLockScreenMusicControls = true;
+                break;
+            case 1:
+            default:
+                mDisplayLockScreenMusicControls = true;
+                mAlwaysDisplayLockScreenMusicControls = false;
+                break;
+        }
+
         if (LockPatternKeyguardView.DEBUG_CONFIGURATION) {
             Log.v(TAG, "***** CREATING LOCK SCREEN", new RuntimeException());
             Log.v(TAG, "Cur orient=" + mCreationOrientation
@@ -220,6 +248,59 @@ class LockScreen extends LinearLayout implements KeyguardScreen, KeyguardUpdateM
             }
         });
 
+        mPlayButton = (ImageButton)findViewById(R.id.mediaPlayButton);
+        mPauseButton = (ImageButton)findViewById(R.id.mediaPauseButton);
+        mPreviousButton = (ImageButton)findViewById(R.id.mediaPreviousButton);
+        mNextButton = (ImageButton)findViewById(R.id.mediaNextButton);
+
+        mPlayButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                mCallback.pokeWakelock();
+                refreshMediaStatus();
+                if (!mAudioManager.isMusicActive()) {
+                    mPlayButton.setVisibility(View.GONE);
+                    mPauseButton.setVisibility(View.VISIBLE);
+                    mPreviousButton.setVisibility(View.VISIBLE);
+                    mNextButton.setVisibility(View.VISIBLE);
+                } else {
+                    mPlayButton.setVisibility(View.VISIBLE);
+                    mPauseButton.setVisibility(View.GONE);
+                    mPreviousButton.setVisibility(View.GONE);
+                    mNextButton.setVisibility(View.GONE);
+                }
+                sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
+            }
+        });
+        mPauseButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                mCallback.pokeWakelock();
+                refreshMediaStatus();
+                if (mAudioManager.isMusicActive()) {
+                    mPlayButton.setVisibility(View.VISIBLE);
+                    mPauseButton.setVisibility(View.GONE);
+                    mPreviousButton.setVisibility(View.GONE);
+                    mNextButton.setVisibility(View.GONE);
+                } else {
+                    mPlayButton.setVisibility(View.GONE);
+                    mPauseButton.setVisibility(View.VISIBLE);
+                    mPreviousButton.setVisibility(View.VISIBLE);
+                    mNextButton.setVisibility(View.VISIBLE);
+                }
+                sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
+            }
+        });
+        mPreviousButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                mCallback.pokeWakelock();
+                sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
+            }
+        });
+        mNextButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                mCallback.pokeWakelock();
+                sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_NEXT);
+            }
+        });
 
         setFocusable(true);
         setFocusableInTouchMode(true);
@@ -228,7 +309,6 @@ class LockScreen extends LinearLayout implements KeyguardScreen, KeyguardUpdateM
         updateMonitor.registerInfoCallback(this);
         updateMonitor.registerSimStateCallback(this);
 
-        mAudioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
         mSilentMode = isSilentMode();
 
         mSelector.setLeftTabResources(
@@ -242,6 +322,20 @@ class LockScreen extends LinearLayout implements KeyguardScreen, KeyguardUpdateM
         mSelector.setOnTriggerListener(this);
 
         resetStatusInfo(updateMonitor);
+    }
+
+    private void sendMediaButtonEvent(int code) {
+        long eventtime = SystemClock.uptimeMillis();
+
+        Intent downIntent = new Intent(Intent.ACTION_MEDIA_BUTTON, null);
+        KeyEvent downEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_DOWN, code, 0);
+        downIntent.putExtra(Intent.EXTRA_KEY_EVENT, downEvent);
+        mContext.sendOrderedBroadcast(downIntent, null);
+
+        Intent upIntent = new Intent(Intent.ACTION_MEDIA_BUTTON, null);
+        KeyEvent upEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_UP, code, 0);
+        upIntent.putExtra(Intent.EXTRA_KEY_EVENT, upEvent);
+        mContext.sendOrderedBroadcast(upIntent, null);
     }
 
     private boolean isSilentMode() {
@@ -268,17 +362,40 @@ class LockScreen extends LinearLayout implements KeyguardScreen, KeyguardUpdateM
         mShowingBatteryInfo = updateMonitor.shouldShowBatteryInfo();
         mPluggedIn = updateMonitor.isDevicePluggedIn();
         mBatteryLevel = updateMonitor.getBatteryLevel();
+        mMediaIsActive = mAudioManager.isMusicActive();
 
         mStatus = getCurrentStatus(updateMonitor.getSimState());
         updateLayout(mStatus);
 
         refreshBatteryStringAndIcon();
         refreshAlarmDisplay();
+        refreshMediaStatus();
 
         mTimeFormat = DateFormat.getTimeFormat(getContext());
         mDateFormatString = getContext().getString(R.string.full_wday_month_day_no_year);
         refreshTimeAndDateDisplay();
         updateStatusLines();
+    }
+
+    private void refreshMediaStatus() {
+        if (mAlwaysDisplayLockScreenMusicControls || ((mMediaWasActive || mMediaIsActive) && mDisplayLockScreenMusicControls)) {
+            if (mAudioManager.isMusicActive()) {
+                mPlayButton.setVisibility(View.GONE);
+                mPauseButton.setVisibility(View.VISIBLE);
+                mPreviousButton.setVisibility(View.VISIBLE);
+                mNextButton.setVisibility(View.VISIBLE);
+            } else {
+                mPlayButton.setVisibility(View.VISIBLE);
+                mPauseButton.setVisibility(View.GONE);
+                mPreviousButton.setVisibility(View.GONE);
+                mNextButton.setVisibility(View.GONE);
+            }
+        } else {
+            mPlayButton.setVisibility(View.GONE);
+            mPauseButton.setVisibility(View.GONE);
+            mPreviousButton.setVisibility(View.GONE);
+            mNextButton.setVisibility(View.GONE);
+        }
     }
 
     @Override

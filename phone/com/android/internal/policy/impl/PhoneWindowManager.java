@@ -481,12 +481,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
              * the user lets go of the volume key
              */
             mVolumeUpPressed = false;
-            // Shamelessly copied from MediaPlaybackService.java, which
-            // should be public, but isn't.
-            Intent i = new Intent("com.android.music.musicservicecommand");
-            i.putExtra("command", "previous");
-            
-            mContext.sendBroadcast(i);
+            sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
         };
     };
     
@@ -500,12 +495,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
              * the user lets go of the volume key
              */
             mVolumeDownPressed = false;
-            // Shamelessly copied from MediaPlaybackService.java, which
-            // should be public, but isn't.
-            Intent i = new Intent("com.android.music.musicservicecommand");
-            i.putExtra("command", "next");
-            
-            mContext.sendBroadcast(i);
+            sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_NEXT);
         };
     };
 
@@ -514,14 +504,26 @@ public class PhoneWindowManager implements WindowManagerPolicy {
      */
     Runnable mCameraLongPress = new Runnable() {
         public void run() {
-            // Shamelessly copied from MediaPlaybackService.java, which
-            // should be public, but isn't.
-            Intent i = new Intent("com.android.music.musicservicecommand");
-            i.putExtra("command", "togglepause");
-
-            mContext.sendBroadcast(i);
+            sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
         };
     };
+
+    /**
+     * Used to press some media buttons
+     */
+    private void sendMediaButtonEvent(int code) {
+        long eventtime = SystemClock.uptimeMillis();
+
+        Intent downIntent = new Intent(Intent.ACTION_MEDIA_BUTTON, null);
+        KeyEvent downEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_DOWN, code, 0);
+        downIntent.putExtra(Intent.EXTRA_KEY_EVENT, downEvent);
+        mContext.sendOrderedBroadcast(downIntent, null);
+
+        Intent upIntent = new Intent(Intent.ACTION_MEDIA_BUTTON, null);
+        KeyEvent upEvent = new KeyEvent(eventtime, eventtime, KeyEvent.ACTION_UP, code, 0);
+        upIntent.putExtra(Intent.EXTRA_KEY_EVENT, upEvent);
+        mContext.sendOrderedBroadcast(upIntent, null);
+    }
 
     /**
      * Create (if necessary) and launch the recent apps dialog

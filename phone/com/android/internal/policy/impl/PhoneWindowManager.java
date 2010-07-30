@@ -220,7 +220,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     int mPointerLocationMode = 0;
     PointerLocationView mPointerLocationView = null;
     boolean mVolumeUpPressed;
+    boolean mVolumeUpLongPressed;
     boolean mVolumeDownPressed;
+    boolean mVolumeDownLongPressed;
     boolean mCameraKeyPressable = false;
     
     // The current size of the screen.
@@ -476,12 +478,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
      */
     Runnable mVolumeUpLongPress = new Runnable() {
         public void run() {
-            /*
-             * Eat the longpress so it won't dismiss the recent apps dialog when
-             * the user lets go of the volume key
-             */
-            mVolumeUpPressed = false;
+            // we first let the system know we long-pressed
+            mVolumeUpLongPressed = true;
+            // send the button event
             sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
+            // and reset the long-press register
+            mHandler.postDelayed(mVolumeUpLongPress, ViewConfiguration.getLongPressTimeout());
         };
     };
     
@@ -490,12 +492,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
      */
     Runnable mVolumeDownLongPress = new Runnable() {
         public void run() {
-            /*
-             * Eat the longpress so it won't dismiss the recent apps dialog when
-             * the user lets go of the volume key
-             */
-            mVolumeDownPressed = false;
+            // we first let the system know we long-pressed
+            mVolumeDownLongPressed = true;
+            // send the button event
             sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_NEXT);
+            // and reset the long-press register
+            mHandler.postDelayed(mVolumeDownLongPress, ViewConfiguration.getLongPressTimeout());
         };
     };
 
@@ -1793,10 +1795,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         else if (isMusicActive()) {
             if (keycode == KeyEvent.KEYCODE_VOLUME_UP) {
                 mVolumeUpPressed = true;
+                mVolumeUpLongPressed = false;
                 mHandler.postDelayed(mVolumeUpLongPress, ViewConfiguration.getLongPressTimeout());
             }
             else {
                 mVolumeDownPressed = true;
+                mVolumeDownLongPressed = false;
                 mHandler.postDelayed(mVolumeDownLongPress, ViewConfiguration.getLongPressTimeout());
             }
         }
@@ -1809,8 +1813,15 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 mHandler.removeCallbacks(mVolumeUpLongPress);
             else
                 mHandler.removeCallbacks(mVolumeDownLongPress);
-            
-            // Normal volume change - not consumed be long press already
+
+            // now we check if either of the volume buttons were long-pressed
+            // if they were, we eat those volume presses
+            if (mVolumeUpLongPressed)
+                mVolumeUpPressed = false;
+            if (mVolumeDownLongPressed)
+                mVolumeDownPressed = false;
+
+            // Normal volume change - not consumed by long press already
             if (mVolumeUpPressed || mVolumeDownPressed)
                 handleVolumeKey(AudioManager.STREAM_MUSIC, keycode);
         }

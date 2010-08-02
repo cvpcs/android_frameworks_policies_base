@@ -219,10 +219,15 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     
     int mPointerLocationMode = 0;
     PointerLocationView mPointerLocationView = null;
+
     boolean mVolumeUpPressed;
     boolean mVolumeUpLongPressed;
+    Object mVolumeUpLock = new Object();
+
     boolean mVolumeDownPressed;
     boolean mVolumeDownLongPressed;
+    Object mVolumeDownLock = new Object();
+
     boolean mCameraKeyPressable = false;
     
     // The current size of the screen.
@@ -478,12 +483,16 @@ public class PhoneWindowManager implements WindowManagerPolicy {
      */
     Runnable mVolumeUpLongPress = new Runnable() {
         public void run() {
-            // we first let the system know we long-pressed
-            mVolumeUpLongPressed = true;
-            // send the button event
-            sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
-            // and reset the long-press register
-            mHandler.postDelayed(mVolumeUpLongPress, ViewConfiguration.getLongPressTimeout());
+            synchronized (mVolumeUpLock) {
+                // we first let the system know we long-pressed
+                mVolumeUpLongPressed = true;
+
+                // send the button event
+                sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
+
+                // and reset the long-press register (wait twice as long for better skip control)
+                mHandler.postDelayed(mVolumeUpLongPress, ViewConfiguration.getLongPressTimeout() * 2);
+            }
         };
     };
     
@@ -492,12 +501,16 @@ public class PhoneWindowManager implements WindowManagerPolicy {
      */
     Runnable mVolumeDownLongPress = new Runnable() {
         public void run() {
-            // we first let the system know we long-pressed
-            mVolumeDownLongPressed = true;
-            // send the button event
-            sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_NEXT);
-            // and reset the long-press register
-            mHandler.postDelayed(mVolumeDownLongPress, ViewConfiguration.getLongPressTimeout());
+            synchronized (mVolumeDownLock) {
+                // we first let the system know we long-pressed
+                mVolumeDownLongPressed = true;
+
+                // send the button event
+                sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_NEXT);
+
+                // and reset the long-press register (wait twice as long for better skip control)
+                mHandler.postDelayed(mVolumeDownLongPress, ViewConfiguration.getLongPressTimeout() * 2);
+            }
         };
     };
 
@@ -1794,19 +1807,25 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         // Take an initial hit time so we can decide for skip or volume adjust
         else if (isMusicActive()) {
             if (keycode == KeyEvent.KEYCODE_VOLUME_UP) {
-                // only start long press delays if the key is being pressed for the first time
-                if (!mVolumeUpPressed) {
-                    mVolumeUpPressed = true;
-                    mVolumeUpLongPressed = false;
-                    mHandler.postDelayed(mVolumeUpLongPress, ViewConfiguration.getLongPressTimeout());
+                // we synchronize this so that things don't get all screwy
+                synchronized (mVolumeUpLock) {
+                    // only start long press delays if the key is being pressed for the first time
+                    if (!mVolumeUpPressed) {
+                        mVolumeUpPressed = true;
+                        mVolumeUpLongPressed = false;
+                        mHandler.postDelayed(mVolumeUpLongPress, ViewConfiguration.getLongPressTimeout());
+                    }
                 }
             }
             else {
-                // only start long press delays if the key is being pressed for the first time
-                if (!mVolumeDownPressed) {
-                    mVolumeDownPressed = true;
-                    mVolumeDownLongPressed = false;
-                    mHandler.postDelayed(mVolumeDownLongPress, ViewConfiguration.getLongPressTimeout());
+                // we synchronize this so that things don't get all screwy
+                synchronized (mVolumeDownLock) {
+                    // only start long press delays if the key is being pressed for the first time
+                    if (!mVolumeDownPressed) {
+                        mVolumeDownPressed = true;
+                        mVolumeDownLongPressed = false;
+                        mHandler.postDelayed(mVolumeDownLongPress, ViewConfiguration.getLongPressTimeout());
+                    }
                 }
             }
         }
@@ -1814,28 +1833,33 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     
     void handleVolumeKeyUp(int keycode) {
         if (isMusicActive()) {
-            
-            if (keycode == KeyEvent.KEYCODE_VOLUME_UP)
-                mHandler.removeCallbacks(mVolumeUpLongPress);
-            else
-                mHandler.removeCallbacks(mVolumeDownLongPress);
+            if (keycode == KeyEvent.KEYCODE_VOLUME_UP) {
+                // synchronize this stuff
+                synchronized (mVolumeUpLock) {
+                    // prevent future long presses
+                    mHandler.removeCallbacks(mVolumeUpLongPress);
 
-            // now we check if either of the volume buttons were long-pressed
-            // if they were, we eat those volume presses
-            if (mVolumeUpLongPressed)
-                mVolumeUpPressed = false;
-            if (mVolumeDownLongPressed)
-                mVolumeDownPressed = false;
+                    // normal volume change
+                    if (mVolumeUpPressed && !mVolumeUpLongPressed)
+                        handleVolumeKey(AudioManager.STREAM_MUSIC, keycode);
 
-            // Normal volume change - not consumed by long press already
-            if (mVolumeUpPressed || mVolumeDownPressed)
-                handleVolumeKey(AudioManager.STREAM_MUSIC, keycode);
+                    // reset these values
+                    mVolumeUpPressed = false;
+                }
+            } else {
+                // synchronize this stuff
+                synchronized (mVolumeDownLock) {
+                    // prevent future long presses
+                    mHandler.removeCallbacks(mVolumeDownLongPress);
 
-            // reset these so we start accepting keypresses again
-            if (keycode == KeyEvent.KEYCODE_VOLUME_UP)
-                mVolumeUpPressed = false;
-            else
-                mVolumeDownPressed = false;
+                    // normal volume change
+                    if (mVolumeDownPressed && !mVolumeDownLongPressed)
+                        handleVolumeKey(AudioManager.STREAM_MUSIC, keycode);
+
+                    // reset these values
+                    mVolumeDownPressed = false;
+                }
+            }
         }
     }
 

@@ -1794,14 +1794,20 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         // Take an initial hit time so we can decide for skip or volume adjust
         else if (isMusicActive()) {
             if (keycode == KeyEvent.KEYCODE_VOLUME_UP) {
-                mVolumeUpPressed = true;
-                mVolumeUpLongPressed = false;
-                mHandler.postDelayed(mVolumeUpLongPress, ViewConfiguration.getLongPressTimeout());
+                // only start long press delays if the key is being pressed for the first time
+                if (!mVolumeUpPressed) {
+                    mVolumeUpPressed = true;
+                    mVolumeUpLongPressed = false;
+                    mHandler.postDelayed(mVolumeUpLongPress, ViewConfiguration.getLongPressTimeout());
+                }
             }
             else {
-                mVolumeDownPressed = true;
-                mVolumeDownLongPressed = false;
-                mHandler.postDelayed(mVolumeDownLongPress, ViewConfiguration.getLongPressTimeout());
+                // only start long press delays if the key is being pressed for the first time
+                if (!mVolumeDownPressed) {
+                    mVolumeDownPressed = true;
+                    mVolumeDownLongPressed = false;
+                    mHandler.postDelayed(mVolumeDownLongPress, ViewConfiguration.getLongPressTimeout());
+                }
             }
         }
     }
@@ -1824,6 +1830,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             // Normal volume change - not consumed by long press already
             if (mVolumeUpPressed || mVolumeDownPressed)
                 handleVolumeKey(AudioManager.STREAM_MUSIC, keycode);
+
+            // reset these so we start accepting keypresses again
+            if (keycode == KeyEvent.KEYCODE_VOLUME_UP)
+                mVolumeUpPressed = false;
+            else
+                mVolumeDownPressed = false;
         }
     }
 

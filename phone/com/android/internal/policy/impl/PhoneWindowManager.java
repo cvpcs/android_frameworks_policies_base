@@ -220,13 +220,17 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     int mPointerLocationMode = 0;
     PointerLocationView mPointerLocationView = null;
 
+    // whether volume (and camera for that matter) button music controls
+    // should work or not
+    boolean mEnableVolBtnMusicControls = true;
+
     boolean mVolumeUpPressed;
     boolean mVolumeUpLongPressed;
-    Object mVolumeUpLock = new Object();
+    final Object mVolumeUpLock = new Object();
 
     boolean mVolumeDownPressed;
     boolean mVolumeDownLongPressed;
-    Object mVolumeDownLock = new Object();
+    final Object mVolumeDownLock = new Object();
 
     boolean mCameraKeyPressable = false;
     
@@ -305,6 +309,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     Settings.Secure.DEFAULT_INPUT_METHOD), false, this);
             resolver.registerContentObserver(Settings.System.getUriFor(
                     "fancy_rotation_anim"), false, this);
+            resolver.registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.ENABLE_VOLBTN_MUSIC_CONTROLS), false, this);
             updateSettings();
         }
 
@@ -483,15 +489,24 @@ public class PhoneWindowManager implements WindowManagerPolicy {
      */
     Runnable mVolumeUpLongPress = new Runnable() {
         public void run() {
+            // do nothing if we don't have volume presses enabled
+            synchronized (mLock) {
+                if (!mEnableVolBtnMusicControls) {
+                    return;
+                }
+            }
+
             synchronized (mVolumeUpLock) {
-                // we first let the system know we long-pressed
-                mVolumeUpLongPressed = true;
+                if (mVolumeUpPressed) {
+                    // we first let the system know we long-pressed
+                    mVolumeUpLongPressed = true;
 
-                // send the button event
-                sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
+                    // send the button event
+                    sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
 
-                // and reset the long-press register (wait twice as long for better skip control)
-                mHandler.postDelayed(mVolumeUpLongPress, ViewConfiguration.getLongPressTimeout() * 2);
+                    // and reset the long-press register (wait twice as long for better skip control)
+                    mHandler.postDelayed(mVolumeUpLongPress, ViewConfiguration.getLongPressTimeout() * 2);
+                }
             }
         };
     };
@@ -501,15 +516,24 @@ public class PhoneWindowManager implements WindowManagerPolicy {
      */
     Runnable mVolumeDownLongPress = new Runnable() {
         public void run() {
+            // do nothing if we don't have volume presses enabled
+            synchronized (mLock) {
+                if (!mEnableVolBtnMusicControls) {
+                    return;
+                }
+            }
+
             synchronized (mVolumeDownLock) {
-                // we first let the system know we long-pressed
-                mVolumeDownLongPressed = true;
+                if (mVolumeDownPressed) {
+                    // we first let the system know we long-pressed
+                    mVolumeDownLongPressed = true;
 
-                // send the button event
-                sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_NEXT);
+                    // send the button event
+                    sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_NEXT);
 
-                // and reset the long-press register (wait twice as long for better skip control)
-                mHandler.postDelayed(mVolumeDownLongPress, ViewConfiguration.getLongPressTimeout() * 2);
+                    // and reset the long-press register (wait twice as long for better skip control)
+                    mHandler.postDelayed(mVolumeDownLongPress, ViewConfiguration.getLongPressTimeout() * 2);
+                }
             }
         };
     };
@@ -666,6 +690,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 mHasSoftInput = hasSoftInput;
                 updateRotation = true;
             }
+            mEnableVolBtnMusicControls = (Settings.System.getInt(resolver,
+                    Settings.System.ENABLE_VOLBTN_MUSIC_CONTROLS, 1) == 1);
         }
         if (updateRotation) {
             updateRotation(0);

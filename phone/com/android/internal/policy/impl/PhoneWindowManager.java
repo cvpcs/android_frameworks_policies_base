@@ -224,12 +224,17 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     // should work or not
     boolean mEnableVolBtnMusicControls = true;
 
-    boolean mVolumeUpPressed;
-    boolean mVolumeUpLongPressed;
+    enum VolBtnState {
+        RELEASED,     // standard released (up) state
+        PRESSED,      // standard pressed (down) state
+        LONG_PRESSED, // has been pressed and held state
+        DISABLED      // disabled state
+    }
+
+    VolBtnState mVolumeUpState = VolBtnState.RELEASED;
     final Object mVolumeUpLock = new Object();
 
-    boolean mVolumeDownPressed;
-    boolean mVolumeDownLongPressed;
+    VolBtnState mVolumeDownState = VolBtnState.RELEASED;
     final Object mVolumeDownLock = new Object();
 
     boolean mCameraKeyPressable = false;
@@ -497,9 +502,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             }
 
             synchronized (mVolumeUpLock) {
-                if (mVolumeUpPressed) {
+                if (mVolumeUpState == VolBtnState.PRESSED) {
                     // we first let the system know we long-pressed
-                    mVolumeUpLongPressed = true;
+                    mVolumeUpState = VolBtnState.LONG_PRESSED;
 
                     // send the button event
                     sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
@@ -511,6 +516,15 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         };
     };
     
+    // used to release a keypress after a longpress
+    Runnable mVolumeUpRelease = new Runnable() {
+        public void run() {
+            synchronized (mVolumeUpLock) {
+                mVolumeUpState = VolBtnState.RELEASED;
+            }
+        };
+    };
+
     /**
      * When a volumedown-key longpress expires, skip songs based on key press
      */
@@ -524,9 +538,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             }
 
             synchronized (mVolumeDownLock) {
-                if (mVolumeDownPressed) {
+                if (mVolumeDownState == VolBtnState.PRESSED) {
                     // we first let the system know we long-pressed
-                    mVolumeDownLongPressed = true;
+                    mVolumeDownState = VolBtnState.LONG_PRESSED;
 
                     // send the button event
                     sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_NEXT);
@@ -538,11 +552,26 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         };
     };
 
+    // used to release a keypress after a longpress
+    Runnable mVolumeDownRelease = new Runnable() {
+        public void run() {
+            synchronized (mVolumeDownLock) {
+                mVolumeDownState = VolBtnState.RELEASED;
+            }
+        };
+    };
+
     /**
      * When a camera-key longpress expires, play/pause on key press
      */
     Runnable mCameraLongPress = new Runnable() {
         public void run() {
+            synchronized (mLock) {
+                if (!mEnableVolBtnMusicControls) {
+                    return;
+                }
+            }
+
             sendMediaButtonEvent(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
         };
     };
@@ -1836,10 +1865,15 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 // we synchronize this so that things don't get all screwy
                 synchronized (mVolumeUpLock) {
                     // only start long press delays if the key is being pressed for the first time
-                    if (!mVolumeUpPressed) {
-                        mVolumeUpPressed = true;
-                        mVolumeUpLongPressed = false;
-                        mHandler.postDelayed(mVolumeUpLongPress, ViewConfiguration.getLongPressTimeout());
+                    if (mVolumeUpState == VolBtnState.RELEASED) {
+                        mVolumeUpState = VolBtnState.PRESSED;
+
+                        // only post the long press if enabled
+                        synchronized (mLock) {
+                            if (!mEnableVolBtnMusicControls) {
+                                mHandler.postDelayed(mVolumeUpLongPress, ViewConfiguration.getLongPressTimeout());
+                            }
+                        }
                     }
                 }
             }
@@ -1847,10 +1881,15 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 // we synchronize this so that things don't get all screwy
                 synchronized (mVolumeDownLock) {
                     // only start long press delays if the key is being pressed for the first time
-                    if (!mVolumeDownPressed) {
-                        mVolumeDownPressed = true;
-                        mVolumeDownLongPressed = false;
-                        mHandler.postDelayed(mVolumeDownLongPress, ViewConfiguration.getLongPressTimeout());
+                    if (mVolumeDownState == VolBtnState.RELEASED) {
+                        mVolumeDownState = VolBtnState.PRESSED;
+
+                        // only post the long press if enabled
+                        synchronized (mLock) {
+                            if (!mEnableVolBtnMusicControls) {
+                                mHandler.postDelayed(mVolumeDownLongPress, ViewConfiguration.getLongPressTimeout());
+                            }
+                        }
                     }
                 }
             }
@@ -1866,11 +1905,14 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     mHandler.removeCallbacks(mVolumeUpLongPress);
 
                     // normal volume change
-                    if (mVolumeUpPressed && !mVolumeUpLongPressed)
+                    if (mVolumeUpState == VolBtnState.PRESSED)
                         handleVolumeKey(AudioManager.STREAM_MUSIC, keycode);
 
-                    // reset these values
-                    mVolumeUpPressed = false;
+                    // disable volume functions for a sec
+                    mVolumeUpState = VolBtnState.DISABLED;
+
+                    // release after a delay
+                    mHandler.postDelayed(mVolumeUpRelease, ViewConfiguration.getLongPressTimeout());
                 }
             } else {
                 // synchronize this stuff
@@ -1879,11 +1921,14 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     mHandler.removeCallbacks(mVolumeDownLongPress);
 
                     // normal volume change
-                    if (mVolumeDownPressed && !mVolumeDownLongPressed)
+                    if (mVolumeDownState == VolBtnState.PRESSED)
                         handleVolumeKey(AudioManager.STREAM_MUSIC, keycode);
 
-                    // reset these values
-                    mVolumeDownPressed = false;
+                    // disable volume functions for a sec
+                    mVolumeDownState = VolBtnState.DISABLED;
+
+                    // release after a delay
+                    mHandler.postDelayed(mVolumeDownRelease, ViewConfiguration.getLongPressTimeout());
                 }
             }
         }
@@ -1896,7 +1941,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
 
         if (mCameraKeyPressable) {
-            mHandler.postDelayed(mCameraLongPress, ViewConfiguration.getLongPressTimeout());
+            // only post the long press if enabled
+            synchronized (mLock) {
+                if (!mEnableVolBtnMusicControls) {
+                    mHandler.postDelayed(mCameraLongPress, ViewConfiguration.getLongPressTimeout());
+                }
+            }
         }
     }
 

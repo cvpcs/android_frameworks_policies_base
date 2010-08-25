@@ -502,7 +502,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             }
 
             synchronized (mVolumeUpLock) {
-                if (mVolumeUpState == VolBtnState.PRESSED) {
+                if (mVolumeUpState == VolBtnState.PRESSED ||
+                    mVolumeUpState == VolBtnState.LONG_PRESSED) {
                     // we first let the system know we long-pressed
                     mVolumeUpState = VolBtnState.LONG_PRESSED;
 
@@ -538,7 +539,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             }
 
             synchronized (mVolumeDownLock) {
-                if (mVolumeDownState == VolBtnState.PRESSED) {
+                if (mVolumeDownState == VolBtnState.PRESSED ||
+                    mVolumeDownState == VolBtnState.LONG_PRESSED) {
                     // we first let the system know we long-pressed
                     mVolumeDownState = VolBtnState.LONG_PRESSED;
 
@@ -1870,7 +1872,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
                         // only post the long press if enabled
                         synchronized (mLock) {
-                            if (!mEnableVolBtnMusicControls) {
+                            if (mEnableVolBtnMusicControls) {
                                 mHandler.postDelayed(mVolumeUpLongPress, ViewConfiguration.getLongPressTimeout());
                             }
                         }
@@ -1886,7 +1888,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
                         // only post the long press if enabled
                         synchronized (mLock) {
-                            if (!mEnableVolBtnMusicControls) {
+                            if (mEnableVolBtnMusicControls) {
                                 mHandler.postDelayed(mVolumeDownLongPress, ViewConfiguration.getLongPressTimeout());
                             }
                         }
@@ -1943,7 +1945,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (mCameraKeyPressable) {
             // only post the long press if enabled
             synchronized (mLock) {
-                if (!mEnableVolBtnMusicControls) {
+                if (mEnableVolBtnMusicControls) {
                     mHandler.postDelayed(mCameraLongPress, ViewConfiguration.getLongPressTimeout());
                 }
             }

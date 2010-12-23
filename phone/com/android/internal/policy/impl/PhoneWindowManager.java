@@ -20,6 +20,7 @@ import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningAppProcessInfo;
 import android.app.ActivityManagerNative;
+import android.app.AlertDialog;
 import android.app.IActivityManager;
 import android.app.IStatusBar;
 import android.app.IUiModeManager;
@@ -28,6 +29,7 @@ import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
@@ -500,6 +502,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 // Bail out unless the user has elected to turn this on.
                 return;
             }
+
             try {
                 IActivityManager mgr = ActivityManagerNative.getDefault();
                 List<RunningAppProcessInfo> apps = mgr.getRunningAppProcesses();
@@ -508,8 +511,30 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     // Make sure it's a foreground user application (not system, root, phone, etc.)
                     if (uid >= Process.FIRST_APPLICATION_UID && uid <= Process.LAST_APPLICATION_UID
                         && appInfo.importance == RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
-                        // Kill the entire pid
-                        Process.killProcess(appInfo.pid);
+
+                        // we need this
+                        final int pid = appInfo.pid;
+
+                        // ask the user to verify
+                        AlertDialog.Builder adb = new AlertDialog.Builder(mContext);
+                        adb.setTitle(com.android.internal.R.string.force_close);
+                        adb.setMessage(com.android.internal.R.string.long_press_back_kill);
+                        adb.setCancelable(true);
+                        adb.setPositiveButton(com.android.internal.R.string.force_close, new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int which) {
+                                // kill
+                                Process.killProcess(pid);
+                                dialog.dismiss();
+                            }
+                        });
+                        adb.setNegativeButton(com.android.internal.R.string.wait, new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int which) {
+                                // do nothing
+                                dialog.dismiss();
+                            }
+                        });
+                        adb.show();
+
                         break;
                     }
                 }

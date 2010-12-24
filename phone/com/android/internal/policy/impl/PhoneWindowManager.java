@@ -516,7 +516,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         final int pid = appInfo.pid;
 
                         // ask the user to verify
-                        AlertDialog.Builder adb = new AlertDialog.Builder(mContext);
+                        final AlertDialog.Builder adb = new AlertDialog.Builder(mContext);
                         adb.setTitle(com.android.internal.R.string.force_close);
                         adb.setMessage(com.android.internal.R.string.long_press_back_kill);
                         adb.setCancelable(true);
@@ -533,7 +533,14 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                                 dialog.dismiss();
                             }
                         });
-                        adb.show();
+                        final AlertDialog dialog = adb.create();
+                        dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG);
+                        if (!mContext.getResources().getBoolean(
+                                com.android.internal.R.bool.config_sf_slowBlur)) {
+                            dialog.getWindow().setFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND,
+                                    WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
+                        }
+                        dialog.show();
 
                         break;
                     }

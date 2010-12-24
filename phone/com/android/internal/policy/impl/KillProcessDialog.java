@@ -27,66 +27,59 @@ import android.os.Process;
 import android.view.Window;
 import android.view.WindowManager;
 
-public class KillProcessDialog extends AlertDialog {
+public class KillProcessDialog {
+    private AlertDialog mDialog;
+    private Context mContext;
     private IntentFilter mBroadcastIntentFilter = new IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
     private int mPid;
 
     public KillProcessDialog(Context context, int pid) {
-        super(context);
-
+        mContext = context;
         mPid = pid;
+        mDialog = null;
     }
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        Context context = getContext();
-
-        setTitle(context.getText(com.android.internal.R.string.force_close));
-        setMessage(context.getText(com.android.internal.R.string.long_press_back_kill));
-        setIcon(com.android.internal.R.drawable.ic_dialog_alert);
-        setCancelable(true);
-
-        Window window = getWindow();
-        window.setType(WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG);
-
-
-        setButton(DialogInterface.BUTTON_POSITIVE, context.getText(com.android.internal.R.string.force_close), new DialogInterface.OnClickListener() {
+    public void show() {
+        final AlertDialog.Builder adb = new AlertDialog.Builder(mContext);
+        adb.setTitle(com.android.internal.R.string.force_close);
+        adb.setMessage(com.android.internal.R.string.long_press_back_kill);
+        adb.setIcon(com.android.internal.R.drawable.ic_dialog_alert);
+        adb.setCancelable(true);
+        adb.setPositiveButton(com.android.internal.R.string.force_close, new DialogInterface.OnClickListener() {
             public void onClick(DialogInterface dialog, int which) {
                 // kill
                 Process.killProcess(mPid);
-                dismiss();
+                dialog.dismiss();
             }
         });
-        setButton(DialogInterface.BUTTON_NEGATIVE, context.getText(com.android.internal.R.string.wait), new DialogInterface.OnClickListener() {
+        adb.setNegativeButton(com.android.internal.R.string.wait, new DialogInterface.OnClickListener() {
             public void onClick(DialogInterface dialog, int which) {
                 // do nothing
-                dismiss();
+                dialog.dismiss();
             }
         });
 
-        if (context.getResources().getBoolean(
+        mDialog = adb.create();
+        mDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG);
+
+        if (mContext.getResources().getBoolean(
                 com.android.internal.R.bool.config_sf_slowBlur)) {
-            window.setFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND,
+            mDialog.getWindow().setFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND,
                     WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
         }
-    }
 
-    @Override
-    public void onStart() {
-        super.onStart();
+        mDialog.setOnShowListener(new DialogInterface.OnShowListener() {
+            public void onShow(DialogInterface dialog) {
+                mContext.registerReceiver(mBroadcastReceiver, mBroadcastIntentFilter);
+            }
+        });
+        mDialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
+            public void onDismiss(DialogInterface dialog) {
+                mContext.unregisterReceiver(mBroadcastReceiver);
+            }
+        });
 
-        // receive broadcasts
-        getContext().registerReceiver(mBroadcastReceiver, mBroadcastIntentFilter);
-    }
-
-    @Override
-    public void onStop() {
-        super.onStop();
-
-        // stop receiving broadcasts
-        getContext().unregisterReceiver(mBroadcastReceiver);
+        mDialog.show();
     }
 
     private BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
@@ -96,7 +89,9 @@ public class KillProcessDialog extends AlertDialog {
             if (Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(action)) {
                 String reason = intent.getStringExtra(PhoneWindowManager.SYSTEM_DIALOG_REASON_KEY);
                 if (! PhoneWindowManager.SYSTEM_DIALOG_REASON_RECENT_APPS.equals(reason)) {
-                    dismiss();
+                    if(mDialog != null && mDialog.isShowing()) {
+                        mDialog.dismiss();
+                    }
                 }
             }
         }

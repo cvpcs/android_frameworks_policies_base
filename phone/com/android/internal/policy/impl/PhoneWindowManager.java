@@ -234,7 +234,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         RELEASED,     // standard released (up) state
         PRESSED,      // standard pressed (down) state
         LONG_PRESSED, // has been pressed and held state
-        DISABLED      // disabled state
     }
 
     VolBtnState mVolumeUpState = VolBtnState.RELEASED;
@@ -1949,6 +1948,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                             }
                         }
                     }
+
+                    // we now implement a delayed releaser.  this will always release the volume pressed state if
+                    // continuous press commands aren't sent (i.e. we stop pressing)
+                    mHandler.removeCallbacks(mVolumeUpRelease);
+                    mHandler.postDelayed(mVolumeUpRelease, ViewConfiguration.getLongPressTimeout() * 2);
                 }
             }
             else {
@@ -1965,6 +1969,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                             }
                         }
                     }
+
+                    // we now implement a delayed releaser.  this will always release the volume pressed state if
+                    // continuous press commands aren't sent (i.e. we stop pressing)
+                    mHandler.removeCallbacks(mVolumeDownRelease);
+                    mHandler.postDelayed(mVolumeDownRelease, ViewConfiguration.getLongPressTimeout() * 2);
                 }
             }
         }
@@ -1977,32 +1986,30 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 synchronized (mVolumeUpLock) {
                     // prevent future long presses
                     mHandler.removeCallbacks(mVolumeUpLongPress);
+                    // remove any keyup callbacks
+                    mHandler.removeCallbacks(mVolumeUpRelease);
 
                     // normal volume change
                     if (mVolumeUpState == VolBtnState.PRESSED)
                         handleVolumeKey(AudioManager.STREAM_MUSIC, keycode);
 
-                    // disable volume functions for a sec
-                    mVolumeUpState = VolBtnState.DISABLED;
-
-                    // release after a delay
-                    mHandler.postDelayed(mVolumeUpRelease, ViewConfiguration.getLongPressTimeout());
+                    // release the key
+                    mVolumeUpState = VolBtnState.RELEASED;
                 }
             } else {
                 // synchronize this stuff
                 synchronized (mVolumeDownLock) {
                     // prevent future long presses
                     mHandler.removeCallbacks(mVolumeDownLongPress);
+                    // remove any keyup callbacks
+                    mHandler.removeCallbacks(mVolumeDownRelease);
 
                     // normal volume change
                     if (mVolumeDownState == VolBtnState.PRESSED)
                         handleVolumeKey(AudioManager.STREAM_MUSIC, keycode);
 
-                    // disable volume functions for a sec
-                    mVolumeDownState = VolBtnState.DISABLED;
-
-                    // release after a delay
-                    mHandler.postDelayed(mVolumeDownRelease, ViewConfiguration.getLongPressTimeout());
+                    // release the key
+                    mVolumeDownState = VolBtnState.RELEASED;
                 }
             }
         }

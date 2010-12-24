@@ -45,6 +45,7 @@ public class KillProcessDialog extends AlertDialog {
 
         setTitle(context.getText(com.android.internal.R.string.force_close));
         setMessage(context.getText(com.android.internal.R.string.long_press_back_kill));
+        setIcon(com.android.internal.R.drawable.ic_dialog_alert);
         setCancelable(true);
 
         Window window = getWindow();

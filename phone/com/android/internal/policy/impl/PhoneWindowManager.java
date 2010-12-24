@@ -20,7 +20,6 @@ import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningAppProcessInfo;
 import android.app.ActivityManagerNative;
-import android.app.AlertDialog;
 import android.app.IActivityManager;
 import android.app.IStatusBar;
 import android.app.IUiModeManager;
@@ -29,7 +28,6 @@ import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
@@ -511,35 +509,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     if (uid >= Process.FIRST_APPLICATION_UID && uid <= Process.LAST_APPLICATION_UID
                         && appInfo.importance == RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
 
-                        // we need this
-                        final int pid = appInfo.pid;
-
-                        // ask the user to verify
-                        final AlertDialog.Builder adb = new AlertDialog.Builder(mContext);
-                        adb.setTitle(com.android.internal.R.string.force_close);
-                        adb.setMessage(com.android.internal.R.string.long_press_back_kill);
-                        adb.setCancelable(true);
-                        adb.setPositiveButton(com.android.internal.R.string.force_close, new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog, int which) {
-                                // kill
-                                Process.killProcess(pid);
-                                dialog.dismiss();
-                            }
-                        });
-                        adb.setNegativeButton(com.android.internal.R.string.wait, new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog, int which) {
-                                // do nothing
-                                dialog.dismiss();
-                            }
-                        });
-                        final AlertDialog dialog = adb.create();
-                        dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG);
-                        if (!mContext.getResources().getBoolean(
-                                com.android.internal.R.bool.config_sf_slowBlur)) {
-                            dialog.getWindow().setFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND,
-                                    WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
-                        }
-                        dialog.show();
+                        // show the kill process dialog
+                        KillProcessDialog kpd = new KillProcessDialog(mContext, appInfo.pid);
+                        kpid.show();
 
                         break;
                     }

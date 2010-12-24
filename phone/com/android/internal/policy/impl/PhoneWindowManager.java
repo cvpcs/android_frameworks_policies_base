@@ -511,7 +511,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
                         // show the kill process dialog
                         KillProcessDialog kpd = new KillProcessDialog(mContext, appInfo.pid);
-                        kpid.show();
+                        kpd.show();
 
                         break;
                     }

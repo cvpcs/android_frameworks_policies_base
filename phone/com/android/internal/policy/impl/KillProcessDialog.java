@@ -62,7 +62,7 @@ public class KillProcessDialog {
         mDialog = adb.create();
         mDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG);
 
-        if (mContext.getResources().getBoolean(
+        if (!mContext.getResources().getBoolean(
                 com.android.internal.R.bool.config_sf_slowBlur)) {
             mDialog.getWindow().setFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND,
                     WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
